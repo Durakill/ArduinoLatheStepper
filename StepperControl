@@ -1,0 +1,154 @@
+#include <AccelStepper.h>
+#include <LiquidCrystal_I2C.h>
+#include <Wire.h> 
+#include <Encoder.h>
+#include <math.h>
+#include <Button.h>
+
+// Define the stepper and the pins it will use
+AccelStepper stepper1(1,11,12); //1 - controller pin 11 = step, pin 12 = direction
+LiquidCrystal_I2C lcd(0x27,20,4);  // set the LCD address to 0x27 for a 20 chars and 4 line display. this originally
+// said 16 chars and 2 line display
+long posEnc1;
+Button* simpleButton;
+Encoder enc1(3,4);  //create an object for the encoder
+
+
+// Define our three input button pins
+#define  LEFT_PIN  5
+#define  STOP_PIN  6
+#define  RIGHT_PIN 7
+#define  LEFT_JOGPIN  10
+#define  RIGHT_JOGPIN 9
+#define  MAX_SPEED 4800//changed to 4000 from 4800 -1120 am Gives 300 rpm at max - goes down to 5rpm with a bit of fiddling.
+#define  MIN_SPEED 0.1
+static char sign = 0;
+long distance = 300000;
+float currentSpeed = 0.0;
+
+
+void setup() {
+  stepper1.setMaxSpeed(MAX_SPEED);
+  stepper1.setAcceleration(MAX_SPEED);
+  stepper1.moveTo(distance);
+
+  
+  lcd.init(); 
+  lcd.backlight();
+
+
+
+  // Set up the three button inputs, with pullups
+  pinMode(LEFT_PIN, INPUT_PULLUP);
+  pinMode(STOP_PIN, INPUT_PULLUP);
+  pinMode(RIGHT_PIN, INPUT_PULLUP);
+  pinMode(LEFT_JOGPIN, INPUT_PULLUP);
+  pinMode(RIGHT_JOGPIN, INPUT_PULLUP);
+  digitalWrite(RIGHT_JOGPIN, HIGH);
+  digitalWrite(LEFT_JOGPIN, HIGH);
+  
+  Serial.begin(9600);
+}
+void loop() {
+  //static float currentSpeed = 0.0;         // Holds current motor speed in steps/second
+  
+  //static int updateDisplay = 1;// Holds raw analog value.
+
+  long newEnc1 ; //create variable for holding new encoder value
+  newEnc1 = enc1.read()/4;  //read the encoder values, and divide by four to get a single increment/notch
+  if (newEnc1 != posEnc1) //if there is a change between the current reading and the last reading
+  {
+    
+    posEnc1 = newEnc1;  //update the last position to the current position
+    Serial.println(posEnc1);
+  }
+  
+  if (digitalRead( LEFT_JOGPIN) == 0) {
+    //lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Jogging left               ");
+   
+    while (digitalRead(LEFT_JOGPIN) == 0) {
+      stepper1.run();
+      Serial.print(" lEFT_JOGPIN pressed value:   "); 
+      Serial.println(digitalRead(LEFT_JOGPIN));
+      stepper1.setSpeed(2400);
+      stepper1.runSpeed();
+      
+      
+    }
+      lcd.clear();
+  }
+
+  if (digitalRead( RIGHT_JOGPIN) == 0 ){
+    lcd.setCursor(0,0);
+    lcd.print("Jogging right        ");
+    
+    while (digitalRead(RIGHT_JOGPIN) == 0) {
+      stepper1.run();
+      Serial.print(" RIGHT_JOGPIN pressed value:   "); 
+      Serial.println(digitalRead(RIGHT_JOGPIN));
+      stepper1.setSpeed(-2400);
+      stepper1.runSpeed();
+  }
+  lcd.clear();
+ } 
+  
+  if (digitalRead(LEFT_PIN) == 0  || sign== 1) {
+    sign = 1;
+    //lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Running forward     ");
+    Serial.println(" Left pin pressed");
+    stepper1.setSpeed(sign*(currentSpeed/60*800));
+    
+  }
+  else if (digitalRead(RIGHT_PIN) == 0 || sign == -1 ) {    
+    sign = -1;
+    //lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Running reverse     ");
+    Serial.println(" Right pin pressed");
+    stepper1.setSpeed(sign*(currentSpeed/60*800));
+    
+    
+  }
+  if (digitalRead(STOP_PIN) == 0) {
+    sign = 0;
+    Serial.println(" Setting pin pressed");
+    //lcd.setCursor(0,0);
+     //lcd.print(" In setting mode . . .");
+    stepper1.setSpeed(0);
+  }
+
+  if (sign == 0) { //We are going to change the speed while the stepper is stopped. This prevents the stepper "glitching" as the 
+    // LCD updates.
+  
+    //current_speed =  (((analog_value/1023.0) * (MAX_SPEED - MIN_SPEED)) + MIN_SPEED); //deleted sign* from front of function
+    currentSpeed = posEnc1*(pow(10, posEnc1*0.11 ));
+    //lcd.setCursor(0,0);
+    lcd.print("                    ");
+    lcd.print("                    ");
+    lcd.setCursor(0,0);
+    //lcd.clear();
+    lcd.print("Speed set:   ");
+    //lcd.print((current_speed/800)*60); //Changed to show speed set when stopped - if (sign == 0)
+    lcd.print(currentSpeed,0);
+    stepper1.setSpeed(sign*(currentSpeed/60*800));
+    
+    
+  }
+   
+  
+ 
+  stepper1.run();
+}
+//}
+
+void onRise(){
+  Serial.println("Button went from off to on!");
+}
+
+void onFall(){
+  Serial.println("Button went from on to off!");
+}
